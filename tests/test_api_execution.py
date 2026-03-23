@@ -53,3 +53,64 @@ def test_test_script(client, configured_suite):
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "success"
+
+
+def test_websocket_execution(client, configured_suite):
+    with client.websocket_connect(f"/ws/execution/{configured_suite}") as ws:
+        data = ws.receive_json()
+        assert data["event"] == "run_started"
+        assert data["total"] == 3
+
+        events = []
+        for _ in range(6):  # 3 leaves × 2 events each (started + completed)
+            events.append(ws.receive_json())
+
+        final = ws.receive_json()
+        assert final["event"] == "run_completed"
+        assert final["passed"] == 3
+
+
+def test_run_suite_with_error_script(client, sample_folders, tmp_path):
+    """Test that script errors are captured properly."""
+    script = tmp_path / "bad_script.sh"
+    script.write_text('#!/bin/bash\nexit 1\n')
+    script.chmod(0o755)
+
+    resp = client.post("/api/tabs", json={"name": "ErrTab"})
+    tab_id = resp.json()["id"]
+    resp = client.post(f"/api/tabs/{tab_id}/suites", json={
+        "name": "ErrSuite", "folder_path": str(sample_folders),
+    })
+    suite_id = resp.json()["id"]
+    client.put(f"/api/suites/{suite_id}", json={
+        "script": {"interpreter": "bash", "script_path": str(script), "timeout_seconds": 10}
+    })
+
+    resp = client.post(f"/api/suites/{suite_id}/run")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["failed"] == 3
+    assert data["passed"] == 0
+
+
+def test_run_suite_no_leaves(client, tmp_path):
+    """Test running a suite with an empty folder."""
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+
+    resp = client.post("/api/tabs", json={"name": "EmptyTab"})
+    tab_id = resp.json()["id"]
+    resp = client.post(f"/api/tabs/{tab_id}/suites", json={
+        "name": "EmptySuite", "folder_path": str(empty_dir),
+    })
+    suite_id = resp.json()["id"]
+
+    script = tmp_path / "dummy.sh"
+    script.write_text('#!/bin/bash\necho "{}"\n')
+    script.chmod(0o755)
+    client.put(f"/api/suites/{suite_id}", json={
+        "script": {"interpreter": "bash", "script_path": str(script), "timeout_seconds": 10}
+    })
+
+    resp = client.post(f"/api/suites/{suite_id}/run")
+    assert resp.status_code == 400
