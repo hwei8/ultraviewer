@@ -66,7 +66,7 @@ const SuiteSettings = {
                 </div>
                 <div class="form-row">
                     <label>Folder Path</label>
-                    <input class="form-input" v-model="form.folder_path">
+                    <folder-browser v-model="form.folder_path" mode="dir"></folder-browser>
                 </div>
                 <div class="form-row">
                     <label>Scan Depth</label>
@@ -89,7 +89,7 @@ const SuiteSettings = {
                 </div>
                 <div class="form-row">
                     <label>Script Path</label>
-                    <input class="form-input" v-model="form.script_path">
+                    <folder-browser v-model="form.script_path" mode="file"></folder-browser>
                 </div>
                 <div class="form-row">
                     <label>Timeout (sec)</label>

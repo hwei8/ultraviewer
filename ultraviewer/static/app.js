@@ -176,6 +176,7 @@ app.component('tab-bar', TabBar);
 app.component('tree-view', TreeView);
 app.component('content-panel', ContentPanel);
 app.component('suite-settings', SuiteSettings);
+app.component('folder-browser', FolderBrowser);
 app.component('table-renderer', TableRenderer);
 app.component('diff-renderer', DiffRenderer);
 app.component('html-renderer', HtmlRenderer);

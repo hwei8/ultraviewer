@@ -342,6 +342,21 @@ body {
     margin-top: 1rem;
 }
 
+/* Folder browser */
+.browser-entry {
+    padding: 0.35rem 0.8rem;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-bottom: 1px solid var(--border);
+}
+.browser-entry:last-child { border-bottom: none; }
+.browser-entry:hover { background: var(--bg-tertiary); }
+.browser-entry.browser-dir { font-weight: 500; }
+
 /* HTML renderer sandbox */
 .html-renderer {
     background: #fff;

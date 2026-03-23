@@ -9,6 +9,7 @@ from ultraviewer.api.tabs import router as tabs_router
 from ultraviewer.api.suites import router as suites_router
 from ultraviewer.api.execution import router as execution_router
 from ultraviewer.api.results import router as results_router
+from ultraviewer.api.browse import router as browse_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,6 +22,7 @@ def create_app() -> FastAPI:
     app.include_router(suites_router)
     app.include_router(execution_router)
     app.include_router(results_router)
+    app.include_router(browse_router)
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     if os.path.isdir(static_dir):
         app.mount("/static", StaticFiles(directory=static_dir), name="static")
