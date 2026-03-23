@@ -23,3 +23,6 @@ dev = [
 
 [project.scripts]
 ultraviewer = "ultraviewer.main:cli"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
