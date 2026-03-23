@@ -32,9 +32,13 @@
                 :leaf-result="selectedLeafResult"
                 :running="isRunning"
                 :progress="runProgress"
+                :suite-leaves="suiteLeaves"
+                :suite-results="suiteResults"
+                :load-error="loadError"
                 @save-settings="saveSuiteSettings"
-                @run-suite="runSuite"
+                @run-selected="runSelectedLeaves"
                 @test-script="testScript"
+                @select-leaf="selectLeaf"
             ></content-panel>
         </div>
 

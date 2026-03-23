@@ -9,6 +9,9 @@ const app = createApp({
             selectedNode: null,
             selectedSuiteData: null,
             selectedLeafResult: null,
+            suiteLeaves: null,
+            suiteResults: null,
+            loadError: null,
             isRunning: false,
             runProgress: null,
             showCreateSuite: false,
@@ -27,6 +30,9 @@ const app = createApp({
             this.selectedNode = null;
             this.selectedSuiteData = null;
             this.selectedLeafResult = null;
+            this.suiteLeaves = null;
+            this.suiteResults = null;
+            this.loadError = null;
             this.loadSuites();
         },
     },
@@ -95,12 +101,53 @@ const app = createApp({
             this.showCreateSuite = false;
             await this.loadSuites();
         },
-        selectSuite(suite) {
+        async selectSuite(suite) {
             this.selectedNode = { type: 'suite', id: suite.id };
             this.selectedSuiteData = suite;
             this.selectedLeafResult = null;
+            this.suiteLeaves = null;
+            this.suiteResults = null;
+            this.loadError = null;
+            await this.loadSuiteLeaves(suite);
+            await this.loadSuiteResults(suite);
         },
-        async selectLeaf({ suite, leaf }) {
+        async loadSuiteLeaves(suite) {
+            try {
+                const resp = await fetch(`/api/suites/${suite.id}/leaves`);
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    this.loadError = err.detail || `Failed to load leaves (${resp.status})`;
+                    this.suiteLeaves = [];
+                    return;
+                }
+                this.suiteLeaves = await resp.json();
+            } catch (e) {
+                this.loadError = 'Network error loading leaves: ' + e.message;
+                this.suiteLeaves = [];
+            }
+        },
+        async loadSuiteResults(suite) {
+            try {
+                const resp = await fetch(`/api/suites/${suite.id}/results`);
+                if (resp.ok) {
+                    this.suiteResults = await resp.json();
+                } else {
+                    this.suiteResults = [];
+                }
+            } catch {
+                this.suiteResults = [];
+            }
+        },
+        async selectLeaf(payload) {
+            if (!payload) {
+                // Back to suite list view
+                if (this.selectedSuiteData) {
+                    this.selectedNode = { type: 'suite', id: this.selectedSuiteData.id };
+                    this.selectedLeafResult = null;
+                }
+                return;
+            }
+            const { suite, leaf } = payload;
             this.selectedNode = { type: 'leaf', id: leaf.path, leaf, suite };
             this.selectedSuiteData = suite;
             this.selectedLeafResult = null;
@@ -119,33 +166,59 @@ const app = createApp({
             });
             await this.loadSuites();
             const updated = this.suites.find(s => s.id === data.id);
-            if (updated) this.selectedSuiteData = updated;
+            if (updated) {
+                this.selectedSuiteData = updated;
+                // Reload leaves in case folder_path changed
+                await this.loadSuiteLeaves(updated);
+            }
         },
 
         // --- Execution ---
+        async runSelectedLeaves({ suite, leafNames }) {
+            this.isRunning = true;
+            this.runProgress = { done: 0, total: leafNames.length };
+            try {
+                const resp = await fetch(`/api/suites/${suite.id}/run-selected`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(leafNames),
+                });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    this.loadError = err.detail || `Run failed (${resp.status})`;
+                    this.isRunning = false;
+                    return;
+                }
+                const data = await resp.json();
+                this.runProgress = { done: data.total, total: data.total };
+
+                // Show summary
+                if (data.failed > 0 || data.errors > 0) {
+                    this.loadError = `Completed: ${data.passed} passed, ${data.failed} failed, ${data.errors} timed out`;
+                } else {
+                    this.loadError = null;
+                }
+            } catch (e) {
+                this.loadError = 'Run failed: ' + e.message;
+            }
+            this.isRunning = false;
+            // Reload results
+            await this.loadSuiteResults(suite);
+        },
         async runSuite(suite) {
+            // Called from tree context menu - run all leaves
             this.isRunning = true;
             this.runProgress = { done: 0, total: 0 };
             try {
-                const ws = new WebSocket(`ws://${location.host}/ws/execution/${suite.id}`);
-                ws.onmessage = (e) => {
-                    const data = JSON.parse(e.data);
-                    if (data.event === 'run_started') {
-                        this.runProgress = { done: 0, total: data.total };
-                    } else if (data.event === 'leaf_completed' || data.event === 'leaf_error') {
-                        this.runProgress.done++;
-                    } else if (data.event === 'run_completed') {
-                        this.isRunning = false;
-                        ws.close();
-                        this.loadSuites();
-                    }
-                };
-                ws.onerror = () => { this.isRunning = false; };
-                ws.onclose = () => { this.isRunning = false; };
-            } catch {
-                await fetch(`/api/suites/${suite.id}/run`, { method: 'POST' });
-                this.isRunning = false;
-                await this.loadSuites();
+                const resp = await fetch(`/api/suites/${suite.id}/run`, { method: 'POST' });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    this.runProgress = { done: data.total, total: data.total };
+                }
+            } catch {}
+            this.isRunning = false;
+            if (this.selectedSuiteData?.id === suite.id) {
+                await this.loadSuiteResults(suite);
             }
         },
         async runLeaf({ suite, leaf }) {
@@ -156,6 +229,9 @@ const app = createApp({
                 this.selectedLeafResult = result;
             } catch {}
             this.isRunning = false;
+            if (this.selectedSuiteData?.id === suite.id) {
+                await this.loadSuiteResults(suite);
+            }
         },
         async testScript(suiteId) {
             try {

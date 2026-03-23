@@ -114,3 +114,37 @@ def test_run_suite_no_leaves(client, tmp_path):
 
     resp = client.post(f"/api/suites/{suite_id}/run")
     assert resp.status_code == 400
+
+
+def test_run_selected_leaves(client, configured_suite):
+    """Test running only selected leaves."""
+    resp = client.post(
+        f"/api/suites/{configured_suite}/run-selected",
+        json=["case_1", "case_3"],
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 2
+    assert data["passed"] == 2
+    leaf_names = [r["leaf"] for r in data["results"]]
+    assert "case_1" in leaf_names
+    assert "case_3" in leaf_names
+    assert "case_2" not in leaf_names
+
+
+def test_run_selected_empty_list(client, configured_suite):
+    """Test running with empty selection returns 400."""
+    resp = client.post(
+        f"/api/suites/{configured_suite}/run-selected",
+        json=[],
+    )
+    assert resp.status_code == 400
+
+
+def test_run_selected_missing_leaf(client, configured_suite):
+    """Test running with nonexistent leaf name returns 404."""
+    resp = client.post(
+        f"/api/suites/{configured_suite}/run-selected",
+        json=["case_1", "nonexistent_case"],
+    )
+    assert resp.status_code == 404

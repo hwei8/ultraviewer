@@ -1,6 +1,7 @@
 import asyncio
 import json
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from typing import Optional
+from fastapi import APIRouter, Body, HTTPException, WebSocket, WebSocketDisconnect
 from ultraviewer.db import get_db
 from ultraviewer.runner import run_script
 from ultraviewer.scanner import scan_folder
@@ -87,6 +88,52 @@ async def run_suite(suite_id: int):
                 return await _run_leaf(config, leaf)
         results = await asyncio.gather(*[run_with_sem(leaf) for leaf in leaves])
         results = list(results)
+
+    passed = sum(1 for r in results if r["status"] == "success")
+    failed = sum(1 for r in results if r["status"] == "error")
+    timeouts = sum(1 for r in results if r["status"] == "timeout")
+
+    return {
+        "total": len(results),
+        "passed": passed,
+        "failed": failed,
+        "errors": timeouts,
+        "results": results,
+    }
+
+@router.post("/api/suites/{suite_id}/run-selected")
+async def run_selected_leaves(suite_id: int, leaf_names: list[str] = Body(...)):
+    config = await _get_suite_config(suite_id)
+    if not config:
+        raise HTTPException(status_code=404, detail="Suite not found")
+    if not config["script"] or not config["script"]["script_path"]:
+        raise HTTPException(status_code=400, detail="No script configured")
+    if not leaf_names:
+        raise HTTPException(status_code=400, detail="No leaves selected")
+
+    all_leaves = scan_folder(config["folder_path"], depth=config["scan_depth"])
+    leaves_by_name = {l["name"]: l for l in all_leaves}
+    missing = [n for n in leaf_names if n not in leaves_by_name]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"Leaves not found: {', '.join(missing)}")
+
+    selected = [leaves_by_name[n] for n in leaf_names]
+
+    max_parallel = config["script"].get("max_parallel", 1)
+    if isinstance(max_parallel, str):
+        max_parallel = int(max_parallel)
+
+    results = []
+    if max_parallel <= 1:
+        for leaf in selected:
+            r = await _run_leaf(config, leaf)
+            results.append(r)
+    else:
+        sem = asyncio.Semaphore(max_parallel)
+        async def run_with_sem(leaf):
+            async with sem:
+                return await _run_leaf(config, leaf)
+        results = list(await asyncio.gather(*[run_with_sem(leaf) for leaf in selected]))
 
     passed = sum(1 for r in results if r["status"] == "success")
     failed = sum(1 for r in results if r["status"] == "error")
