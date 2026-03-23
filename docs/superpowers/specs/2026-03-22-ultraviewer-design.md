@@ -123,6 +123,7 @@ Four configuration sections when clicking a suite node:
 | timeout_seconds | INTEGER | DEFAULT 30 |
 | extra_args | JSON | `[{"key": "--golden-path", "value": "/data/golden/"}]` |
 | env_vars | JSON | `[{"key": "MODULE_NAME", "value": "login"}]` |
+| max_parallel | INTEGER | DEFAULT 1 (1=sequential, >1=parallel execution) |
 
 ### suite_rendering
 | Column | Type | Notes |
@@ -153,7 +154,7 @@ Four configuration sections when clicking a suite node:
 | GET | `/api/tabs` | List all tabs |
 | POST | `/api/tabs` | Create tab |
 | PUT | `/api/tabs/{id}` | Update tab (rename, reorder) |
-| DELETE | `/api/tabs/{id}` | Delete tab |
+| DELETE | `/api/tabs/{id}` | Delete tab (cascades: deletes all suites and results under it) |
 
 ### Suites
 | Method | Endpoint | Description |
@@ -180,6 +181,8 @@ Four configuration sections when clicking a suite node:
 |--------|----------|-------------|
 | GET | `/api/suites/{id}/results` | Get latest results for all leaves |
 | GET | `/api/suites/{id}/results/{leaf}` | Get result for specific leaf |
+| GET | `/api/suites/{id}/results/history` | Get all historical runs (timestamps + summary) |
+| GET | `/api/suites/{id}/results/history/{run_at}` | Get results for a specific past run |
 
 ### WebSocket
 | Method | Endpoint | Description |
@@ -257,7 +260,8 @@ ultraviewer/
 │       │   └── renderers/
 │       │       ├── TableRenderer.js
 │       │       ├── DiffRenderer.js
-│       │       └── HtmlRenderer.js
+│       │       ├── HtmlRenderer.js
+│       │       └── SectionsRenderer.js
 │       └── style.css
 ```
 
