@@ -101,6 +101,29 @@ const app = createApp({
             this.showCreateSuite = false;
             await this.loadSuites();
         },
+        async deleteSuite(suite) {
+            try {
+                const resp = await fetch(`/api/suites/${suite.id}`, { method: 'DELETE' });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    alert('Failed to delete suite: ' + (err.detail || resp.status));
+                    return;
+                }
+            } catch (e) {
+                alert('Error deleting suite: ' + e.message);
+                return;
+            }
+            // Clear selection if deleted suite was selected
+            if (this.selectedSuiteData?.id === suite.id) {
+                this.selectedNode = null;
+                this.selectedSuiteData = null;
+                this.selectedLeafResult = null;
+                this.suiteLeaves = null;
+                this.suiteResults = null;
+                this.loadError = null;
+            }
+            await this.loadSuites();
+        },
         async selectSuite(suite) {
             this.selectedNode = { type: 'suite', id: suite.id };
             this.selectedSuiteData = suite;

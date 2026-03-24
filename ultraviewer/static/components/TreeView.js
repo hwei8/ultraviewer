@@ -1,6 +1,6 @@
 const TreeView = {
     props: ['suites', 'selectedNode'],
-    emits: ['selectSuite', 'selectLeaf', 'createSuite', 'runSuite', 'runLeaf'],
+    emits: ['selectSuite', 'selectLeaf', 'createSuite', 'runSuite', 'runLeaf', 'deleteSuite'],
     data() {
         return {
             expandedSuites: {},
@@ -34,10 +34,12 @@ const TreeView = {
         },
         onSuiteContextMenu(e, suite) {
             e.preventDefault();
+            e.stopPropagation();
             this.contextMenu = { x: e.clientX, y: e.clientY, type: 'suite', item: suite };
         },
         onLeafContextMenu(e, suite, leaf) {
             e.preventDefault();
+            e.stopPropagation();
             this.contextMenu = { x: e.clientX, y: e.clientY, type: 'leaf', item: leaf, suite };
         },
         closeContextMenu() {
@@ -49,6 +51,12 @@ const TreeView = {
         async refreshLeaves(suiteId) {
             const suite = this.suites.find(s => s.id === suiteId);
             if (suite) await this.loadLeaves(suite);
+        },
+        confirmDeleteSuite(suite) {
+            this.contextMenu = null;
+            if (confirm(`Delete suite "${suite.name}"? This will also remove all its run results.`)) {
+                this.$emit('deleteSuite', suite);
+            }
         },
     },
     mounted() {
@@ -93,16 +101,20 @@ const TreeView = {
                 </div>
             </div>
 
-            <div v-if="contextMenu" class="context-menu"
-                 :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }">
-                <template v-if="contextMenu.type === 'suite'">
-                    <div class="context-menu-item" @click="$emit('runSuite', contextMenu.item); closeContextMenu()">Run Suite</div>
-                    <div class="context-menu-item" @click="refreshLeaves(contextMenu.item.id); closeContextMenu()">Rescan</div>
-                </template>
-                <template v-if="contextMenu.type === 'leaf'">
-                    <div class="context-menu-item" @click="$emit('runLeaf', { suite: contextMenu.suite, leaf: contextMenu.item }); closeContextMenu()">Run This</div>
-                </template>
-            </div>
+            <Teleport to="body">
+                <div v-if="contextMenu" class="context-menu"
+                     :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+                     @click.stop>
+                    <template v-if="contextMenu.type === 'suite'">
+                        <div class="context-menu-item" @click="$emit('runSuite', contextMenu.item); closeContextMenu()">Run Suite</div>
+                        <div class="context-menu-item" @click="refreshLeaves(contextMenu.item.id); closeContextMenu()">Rescan</div>
+                        <div class="context-menu-item danger" @click.stop="confirmDeleteSuite(contextMenu.item)">Delete Suite</div>
+                    </template>
+                    <template v-if="contextMenu.type === 'leaf'">
+                        <div class="context-menu-item" @click="$emit('runLeaf', { suite: contextMenu.suite, leaf: contextMenu.item }); closeContextMenu()">Run This</div>
+                    </template>
+                </div>
+            </Teleport>
         </div>
     `,
 };
